@@ -85,10 +85,6 @@ int sys_uptime(void)
   return xticks;
 }
 
-/*
-  this is the actual function being called from syscall.c
-  @returns - 0 if suceeded, 1 if no history in the historyId given, 2 if illgal history id
-*/
 int sys_history(void)
 {
   char *buffer;
@@ -96,4 +92,16 @@ int sys_history(void)
   argptr(0, &buffer, 1);
   argint(1, &historyId);
   return history(buffer, historyId);
+}
+
+int sys_wait2(void)
+{
+  int *retime, *rutime, *stime;
+  if (argptr(0, (void *)&retime, sizeof(retime)) < 0)
+    return -1;
+  if (argptr(1, (void *)&rutime, sizeof(retime)) < 0)
+    return -1;
+  if (argptr(2, (void *)&stime, sizeof(stime)) < 0)
+    return -1;
+  return wait2(retime, rutime, stime);
 }
