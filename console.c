@@ -14,7 +14,6 @@
 #include "mmu.h"
 #include "proc.h"
 #include "x86.h"
-#include "console.h"
 
 static void consputc(int);
 
@@ -26,9 +25,6 @@ static struct
   int locking;
 } cons;
 
-/*
-  prints an int to screen, used for cprintf
-*/
 static void
 printint(int xx, int base, int sign)
 {
@@ -111,9 +107,6 @@ void cprintf(char *fmt, ...)
     release(&cons.lock);
 }
 
-/*
-  this methods prints the meassage parameter and freezes the cpu
-*/
 void panic(char *s)
 {
   int i;
@@ -134,12 +127,18 @@ void panic(char *s)
 }
 
 //PAGEBREAK: 50
+#define BACKSPACE 0x100
+#define CRTPORT 0x3d4
+
+#define MAX_HISTORY 16
+
+#define UP_ARROW 226
+#define DOWN_ARROW 227
+#define LEFT_ARROW 228
+#define RIGHT_ARROW 229
 
 static ushort *crt = (ushort *)P2V(0xb8000); // CGA memory
 
-/*
-  this method actually prints the character to the xv6 screen
-*/
 static void
 cgaputc(int c)
 {
@@ -186,9 +185,6 @@ cgaputc(int c)
     crt[pos] = ' ' | 0x0700;
 }
 
-/*
-    makes sure both the linux shel screen and the qemu will handle the given char proparly
-*/
 void consputc(int c)
 {
   if (panicked)
@@ -215,6 +211,8 @@ void consputc(int c)
   cgaputc(c);
 }
 
+#define INPUT_BUF 128
+
 struct
 {
   char buf[INPUT_BUF];
@@ -224,11 +222,10 @@ struct
   uint rightmost; // the first empty char in the line
 } input;
 
+#define C(x) ((x) - '@') // Control-x
+
 char charsToBeMoved[INPUT_BUF]; // temporary storage for input.buf in a certain context
 
-/*
-  this struct will hold the history buffer array
-*/
 struct
 {
   char bufferArr[MAX_HISTORY][INPUT_BUF]; //holds the actual command strings -
@@ -243,12 +240,6 @@ uint lengthOfOldBuf;
 
 char buf2[INPUT_BUF];
 
-#define C(x) ((x) - '@') // Control-x
-
-/*
-Copy input.buf to a safe location. Used only when punching in new keys and the
-caret isn't at the end of the line.
-*/
 void copyCharsToBeMoved()
 {
   uint n = input.rightmost - input.r;
@@ -257,10 +248,6 @@ void copyCharsToBeMoved()
     charsToBeMoved[i] = input.buf[(input.e + i) % INPUT_BUF];
 }
 
-/*
-Shift input.buf one byte to the right, and repaint the chars on-screen. Used
-Used only when punching in new keys and the caret isn't at the end of the line.
-*/
 void shiftbufright()
 {
   uint n = input.rightmost - input.e;
@@ -281,10 +268,6 @@ void shiftbufright()
   }
 }
 
-/*
-Shift input.buf one byte to the left, and repaint the chars on-screen. Used
-Used only when punching in BACKSPACE and the caret isn't at the end of the line.
-*/
 void shiftbufleft()
 {
   uint n = input.rightmost - input.e;
@@ -305,9 +288,6 @@ void shiftbufleft()
   }
 }
 
-/*
-  this method eareases the current line from screen
-*/
 void earaseCurrentLineOnScreen(void)
 {
   uint numToEarase = input.rightmost - input.r;
@@ -318,9 +298,6 @@ void earaseCurrentLineOnScreen(void)
   }
 }
 
-/*
-  this method copies the chars currently on display (and on Input.buf) to oldBuf and save its length on current_history_viewed.lengthOld
-*/
 void copyCharsToBeMovedToOldBuf(void)
 {
   lengthOfOldBuf = input.rightmost - input.r;
@@ -331,18 +308,6 @@ void copyCharsToBeMovedToOldBuf(void)
   }
 }
 
-/*
-  this method earase all the content of the current command on the inputbuf
-*/
-void earaseContentOnInputBuf()
-{
-  input.rightmost = input.r;
-  input.e = input.r;
-}
-
-/*
-  this method will print the given buf on the screen
-*/
 void copyBufferToScreen(char *bufToPrintOnScreen, uint length)
 {
   uint i;
@@ -352,11 +317,12 @@ void copyBufferToScreen(char *bufToPrintOnScreen, uint length)
   }
 }
 
-/*
-  this method will copy the given buf to Input.buf
-  will set the input.e and input.rightmost
-  assumes input.r=input.w=input.rightmost=input.e
-*/
+void earaseContentOnInputBuf()
+{
+  input.rightmost = input.r;
+  input.e = input.r;
+}
+
 void copyBufferToInputBuf(char *bufToSaveInInput, uint length)
 {
   uint i;
@@ -368,10 +334,6 @@ void copyBufferToInputBuf(char *bufToSaveInInput, uint length)
   input.rightmost = input.e;
 }
 
-/*
-  this method copies the current command in the input.buf to the saved history
-  @param length - length of command to be saved
-*/
 void saveCommandInHistory()
 {
   historyBufferArray.currentHistory = -1; //reseting the users history current viewed
@@ -387,95 +349,6 @@ void saveCommandInHistory()
   }
 }
 
-/*
-  this is the function that gets called by the sys_history and writes the requested command history in the buffer
-*/
-int history(char *buffer, int historyId)
-{
-  if (historyId < 0 || historyId > MAX_HISTORY - 1)
-    return -2;
-  if (historyId >= historyBufferArray.numOfCommmandsInMem)
-    return -1;
-  memset(buffer, '\0', INPUT_BUF);
-  int tempIndex = (historyBufferArray.lastCommandIndex + historyId) % MAX_HISTORY;
-  memmove(buffer, historyBufferArray.bufferArr[tempIndex], historyBufferArray.lengthsArr[tempIndex]);
-  return 0;
-}
-
-int consoleread(struct inode *ip, char *dst, int n)
-{
-  uint target;
-  int c;
-
-  iunlock(ip);
-  target = n;
-  acquire(&cons.lock);
-  while (n > 0)
-  {
-    while (input.r == input.w)
-    {
-      if (myproc()->killed)
-      {
-        release(&cons.lock);
-        ilock(ip);
-        return -1;
-      }
-      sleep(&input.r, &cons.lock);
-    }
-    c = input.buf[input.r++ % INPUT_BUF];
-    if (c == C('D'))
-    { // EOF
-      if (n < target)
-      {
-        // Save ^D for next time, to make sure
-        // caller gets a 0-byte result.
-        input.r--;
-      }
-      break;
-    }
-    *dst++ = c;
-    --n;
-    if (c == '\n')
-      break;
-  }
-  release(&cons.lock);
-  ilock(ip);
-
-  return target - n;
-}
-
-int consolewrite(struct inode *ip, char *buf, int n)
-{
-  int i;
-
-  iunlock(ip);
-  acquire(&cons.lock);
-  for (i = 0; i < n; i++)
-    consputc(buf[i] & 0xff);
-  release(&cons.lock);
-  ilock(ip);
-
-  return n;
-}
-
-void consoleinit(void)
-{
-  initlock(&cons.lock, "console");
-
-  devsw[CONSOLE].write = consolewrite;
-  devsw[CONSOLE].read = consoleread;
-  cons.locking = 1;
-
-  // picenable(IRQ_KBD);
-  ioapicenable(IRQ_KBD, 0);
-
-  historyBufferArray.numOfCommmandsInMem = 0;
-  historyBufferArray.lastCommandIndex = 0;
-}
-
-/*
-  this method begins the handeling of a console interupt
-*/
 void consoleintr(int (*getc)(void))
 {
   int c, doprocdump = 0;
@@ -636,4 +509,86 @@ void consoleintr(int (*getc)(void))
   {
     procdump(); // now call procdump() wo. cons.lock held
   }
+}
+
+int history(char *buffer, int historyId)
+{
+  if (historyId < 0 || historyId > MAX_HISTORY - 1)
+    return -2;
+  if (historyId >= historyBufferArray.numOfCommmandsInMem)
+    return -1;
+  memset(buffer, '\0', INPUT_BUF);
+  int tempIndex = (historyBufferArray.lastCommandIndex + historyId) % MAX_HISTORY;
+  memmove(buffer, historyBufferArray.bufferArr[tempIndex], historyBufferArray.lengthsArr[tempIndex]);
+  return 0;
+}
+
+int consoleread(struct inode *ip, char *dst, int n)
+{
+  uint target;
+  int c;
+
+  iunlock(ip);
+  target = n;
+  acquire(&cons.lock);
+  while (n > 0)
+  {
+    while (input.r == input.w)
+    {
+      if (myproc()->killed)
+      {
+        release(&cons.lock);
+        ilock(ip);
+        return -1;
+      }
+      sleep(&input.r, &cons.lock);
+    }
+    c = input.buf[input.r++ % INPUT_BUF];
+    if (c == C('D'))
+    { // EOF
+      if (n < target)
+      {
+        // Save ^D for next time, to make sure
+        // caller gets a 0-byte result.
+        input.r--;
+      }
+      break;
+    }
+    *dst++ = c;
+    --n;
+    if (c == '\n')
+      break;
+  }
+  release(&cons.lock);
+  ilock(ip);
+
+  return target - n;
+}
+
+int consolewrite(struct inode *ip, char *buf, int n)
+{
+  int i;
+
+  iunlock(ip);
+  acquire(&cons.lock);
+  for (i = 0; i < n; i++)
+    consputc(buf[i] & 0xff);
+  release(&cons.lock);
+  ilock(ip);
+
+  return n;
+}
+
+void consoleinit(void)
+{
+  initlock(&cons.lock, "console");
+
+  devsw[CONSOLE].write = consolewrite;
+  devsw[CONSOLE].read = consoleread;
+  cons.locking = 1;
+
+  ioapicenable(IRQ_KBD, 0);
+
+  historyBufferArray.numOfCommmandsInMem = 0;
+  historyBufferArray.lastCommandIndex = 0;
 }
