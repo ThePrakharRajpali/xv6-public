@@ -51,9 +51,7 @@ printint(int xx, int base, int sign)
   while (--i >= 0)
     consputc(buf[i]);
 }
-//PAGEBREAK: 50
 
-// Print to the console. only understands %d, %x, %p, %s.
 void cprintf(char *fmt, ...)
 {
   int i, c, locking;
@@ -97,7 +95,6 @@ void cprintf(char *fmt, ...)
       consputc('%');
       break;
     default:
-      // Print unknown % sequence to draw attention.
       consputc('%');
       consputc(c);
       break;
@@ -115,19 +112,17 @@ void panic(char *s)
 
   cli();
   cons.locking = 0;
-  // use lapiccpunum so that we can call panic from mycpu()
   cprintf("lapicid %d: panic: ", lapicid());
   cprintf(s);
   cprintf("\n");
   getcallerpcs(&s, pcs);
   for (i = 0; i < 10; i++)
     cprintf(" %p", pcs[i]);
-  panicked = 1; // freeze other CPU
+  panicked = 1;
   for (;;)
     ;
 }
 
-//PAGEBREAK: 50
 #define BACKSPACE 0x100
 #define CRTPORT 0x3d4
 
@@ -136,14 +131,12 @@ void panic(char *s)
 #define LEFT_ARROW 228
 #define RIGHT_ARROW 229
 
-static ushort *crt = (ushort *)P2V(0xb8000); // CGA memory
+static ushort *crt = (ushort *)P2V(0xb8000);
 
 static void
 cgaputc(int c)
 {
   int pos;
-
-  // Cursor position: col + 80*row.
   outb(CRTPORT, 14);
   pos = inb(CRTPORT + 1) << 8;
   outb(CRTPORT, 15);
@@ -170,7 +163,7 @@ cgaputc(int c)
     panic("pos under/overflow");
 
   if ((pos / 80) >= 24)
-  { // Scroll up.
+  {
     memmove(crt, crt + 80, sizeof(crt[0]) * 23 * 80);
     pos -= 80;
     memset(crt + pos, 0, sizeof(crt[0]) * (24 * 80 - pos));
@@ -195,10 +188,10 @@ void consputc(int c)
   switch (c)
   {
   case BACKSPACE:
-    // uartputc prints to Linux's terminal
+
     uartputc('\b');
     uartputc(' ');
-    uartputc('\b'); // uart is writing to the linux shell
+    uartputc('\b');
     break;
   case LEFT_ARROW:
     uartputc('\b');
@@ -206,7 +199,7 @@ void consputc(int c)
   default:
     uartputc(c);
   }
-  // cgaputc prints to QEMU's terminal
+
   cgaputc(c);
 }
 
@@ -215,26 +208,26 @@ void consputc(int c)
 struct
 {
   char buf[INPUT_BUF];
-  uint r;         // Read index, exec will start reading the command from here
-  uint w;         // Write index, exec will finish reading the command here
-  uint e;         // Edit index, current caret position
-  uint rightmost; // the first empty char in the line
+  uint r; // Read
+  uint w; // Write
+  uint e; // Edit
+  uint rightmost;
 } input;
 
 #define C(x) ((x) - '@') // Control-x
 
-char charsToBeMoved[INPUT_BUF]; // temporary storage for input.buf in a certain context
+char charsToBeMoved[INPUT_BUF];
 
 struct
 {
-  char bufferArr[MAX_HISTORY][INPUT_BUF]; //holds the actual command strings -
-  uint lengthsArr[MAX_HISTORY];           // this will hold the length of each command string
-  uint lastCommandIndex;                  //the index of the last command entered to history
-  int numOfCommmandsInMem;                //number of history commands in mem
-  int currentHistory;                     //this will hold the current history view (the oldest will be MAX_HISTORY-1)
+  char bufferArr[MAX_HISTORY][INPUT_BUF];
+  uint lengthsArr[MAX_HISTORY];
+  uint lastCommandIndex;
+  int numOfCommmandsInMem;
+  int currentHistory;
 } historyBufferArray;
 
-char oldBuf[INPUT_BUF]; // this will hold the details of the command that was written before accessing the history
+char oldBuf[INPUT_BUF];
 uint lengthOfOldBuf;
 
 char buf2[INPUT_BUF];
@@ -258,9 +251,7 @@ void shiftbufright()
     input.buf[(input.e + i) % INPUT_BUF] = c;
     consputc(c);
   }
-  // reset charsToBeMoved for future use
   memset(charsToBeMoved, '\0', INPUT_BUF);
-  // return the caret to its correct position
   for (i = 0; i < n; i++)
   {
     consputc(LEFT_ARROW);
@@ -280,10 +271,10 @@ void shiftbufleft()
     consputc(c);
   }
   input.rightmost--;
-  consputc(' '); // delete the last char in line
+  consputc(' ');
   for (i = 0; i <= n; i++)
   {
-    consputc(LEFT_ARROW); // shift the caret back to the left
+    consputc(LEFT_ARROW);
   }
 }
 
@@ -335,15 +326,15 @@ void copyBufferToInputBuf(char *bufToSaveInInput, uint length)
 
 void saveCommandInHistory()
 {
-  historyBufferArray.currentHistory = -1; //reseting the users history current viewed
+  historyBufferArray.currentHistory = -1;
   if (historyBufferArray.numOfCommmandsInMem < MAX_HISTORY)
-    historyBufferArray.numOfCommmandsInMem++; //when we get to MAX_HISTORY commands in memory we keep on inserting to the array in a circular mution
+    historyBufferArray.numOfCommmandsInMem++;
   uint l = input.rightmost - input.r - 1;
   historyBufferArray.lastCommandIndex = (historyBufferArray.lastCommandIndex - 1) % MAX_HISTORY;
   historyBufferArray.lengthsArr[historyBufferArray.lastCommandIndex] = l;
   uint i;
   for (i = 0; i < l; i++)
-  { //do not want to save in memory the last char '/n'
+  {
     historyBufferArray.bufferArr[historyBufferArray.lastCommandIndex][i] = input.buf[(input.r + i) % INPUT_BUF];
   }
 }
@@ -357,12 +348,12 @@ void consoleintr(int (*getc)(void))
   {
     switch (c)
     {
-    case C('P'):      // Process listing.
-      doprocdump = 1; // procdump() locks cons.lock indirectly; invoke later
+    case C('P'):
+      doprocdump = 1;
       break;
-    case C('U'): // Kill line.
+    case C('U'):
       if (input.rightmost > input.e)
-      { // caret isn't at the end of the line
+      {
         uint numtoshift = input.rightmost - input.e;
         uint placestoshift = input.e - input.w;
         uint i;
@@ -382,20 +373,20 @@ void consoleintr(int (*getc)(void))
         input.e -= placestoshift;
         input.rightmost -= placestoshift;
         for (i = 0; i < numtoshift; i++)
-        { // repaint the chars
+        {
           consputc(input.buf[(input.e + i) % INPUT_BUF]);
         }
         for (i = 0; i < placestoshift; i++)
-        { // erase the leftover chars
+        {
           consputc(' ');
         }
         for (i = 0; i < placestoshift + numtoshift; i++)
-        { // move the caret back to the left
+        {
           consputc(LEFT_ARROW);
         }
       }
       else
-      { // caret is at the end of the line -                                       ( deleting everything from both screen and inputbuf)
+      {
         while (input.e != input.w &&
                input.buf[(input.e - 1) % INPUT_BUF] != '\n')
         {
@@ -408,12 +399,12 @@ void consoleintr(int (*getc)(void))
     case C('H'):
     case '\x7f': // Backspace
       if (input.rightmost != input.e && input.e != input.w)
-      { // caret isn't at the end of the line
+      {
         shiftbufleft();
         break;
       }
       if (input.e != input.w)
-      { // caret is at the end of the line - deleting last char
+      {
         input.e--;
         input.rightmost--;
         consputc(BACKSPACE);
@@ -440,7 +431,7 @@ void consoleintr(int (*getc)(void))
       break;
     case UP_ARROW:
       if (historyBufferArray.currentHistory < historyBufferArray.numOfCommmandsInMem - 1)
-      { // current history means the oldest possible will be MAX_HISTORY-1
+      {
         earaseCurrentLineOnScreen();
         if (historyBufferArray.currentHistory == -1)
           copyCharsToBeMovedToOldBuf();
@@ -455,9 +446,8 @@ void consoleintr(int (*getc)(void))
       switch (historyBufferArray.currentHistory)
       {
       case -1:
-        //does nothing
         break;
-      case 0: //get string from old buf
+      case 0:
         earaseCurrentLineOnScreen();
         copyBufferToInputBuf(oldBuf, lengthOfOldBuf);
         copyBufferToScreen(oldBuf, lengthOfOldBuf);
@@ -480,7 +470,7 @@ void consoleintr(int (*getc)(void))
       {
         c = (c == '\r') ? '\n' : c;
         if (input.rightmost > input.e)
-        { // caret isn't at the end of the line
+        {
           copyCharsToBeMoved();
           input.buf[input.e++ % INPUT_BUF] = c;
           input.rightmost++;
@@ -506,7 +496,7 @@ void consoleintr(int (*getc)(void))
   release(&cons.lock);
   if (doprocdump)
   {
-    procdump(); // now call procdump() wo. cons.lock held
+    procdump();
   }
 }
 
@@ -544,11 +534,9 @@ int consoleread(struct inode *ip, char *dst, int n)
     }
     c = input.buf[input.r++ % INPUT_BUF];
     if (c == C('D'))
-    { // EOF
+    {
       if (n < target)
       {
-        // Save ^D for next time, to make sure
-        // caller gets a 0-byte result.
         input.r--;
       }
       break;
