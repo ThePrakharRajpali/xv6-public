@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "fs.h": "c",
+        "spinlock.h": "c",
+        "memlayout.h": "c",
+        "file.h": "c",
+        "traps.h": "c",
+        "param.h": "c",
+        "types.h": "c",
+        "defs.h": "c",
+        "console.h": "c"
+    }
+}

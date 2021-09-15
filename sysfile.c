@@ -42,13 +42,12 @@ static int
 fdalloc(struct file *f)
 {
   int fd;
-  struct proc *curproc = myproc();
 
   for (fd = 0; fd < NOFILE; fd++)
   {
-    if (curproc->ofile[fd] == 0)
+    if (myproc()->ofile[fd] == 0)
     {
-      curproc->ofile[fd] = f;
+      myproc()->ofile[fd] = f;
       return fd;
     }
   }
@@ -244,6 +243,7 @@ bad:
 static struct inode *
 create(char *path, short type, short major, short minor)
 {
+  uint off;
   struct inode *ip, *dp;
   char name[DIRSIZ];
 
@@ -251,7 +251,7 @@ create(char *path, short type, short major, short minor)
     return 0;
   ilock(dp);
 
-  if ((ip = dirlookup(dp, name, 0)) != 0)
+  if ((ip = dirlookup(dp, name, &off)) != 0)
   {
     iunlockput(dp);
     ilock(ip);
@@ -363,10 +363,11 @@ int sys_mknod(void)
 {
   struct inode *ip;
   char *path;
+  int len;
   int major, minor;
 
   begin_op();
-  if ((argstr(0, &path)) < 0 ||
+  if ((len = argstr(0, &path)) < 0 ||
       argint(1, &major) < 0 ||
       argint(2, &minor) < 0 ||
       (ip = create(path, T_DEV, major, minor)) == 0)
@@ -383,7 +384,6 @@ int sys_chdir(void)
 {
   char *path;
   struct inode *ip;
-  struct proc *curproc = myproc();
 
   begin_op();
   if (argstr(0, &path) < 0 || (ip = namei(path)) == 0)
@@ -399,9 +399,9 @@ int sys_chdir(void)
     return -1;
   }
   iunlock(ip);
-  iput(curproc->cwd);
+  iput(myproc()->cwd);
   end_op();
-  curproc->cwd = ip;
+  myproc()->cwd = ip;
   return 0;
 }
 
@@ -455,49 +455,4 @@ int sys_pipe(void)
   fd[0] = fd0;
   fd[1] = fd1;
   return 0;
-}
-
-#define MAX_HISTORY 16
-
-// Function called in syscall.c
-int sys_history(void)
-{
-  char *buffer;
-  int historyId;
-  int *length;
-  if (historyId < 0 || historyId > 15)
-    return 2;
-  if (!(historyId < history_buffer_array.numOfCommmandsInMem))
-    return 1;
-  else
-    history(buffer, historyId, length);
-  return 0;
-}
-
-// History buffer array;
-struct
-{
-  char bufferArr[MAX_HISTORY][INPUT_BUF]; //holds the actual command strings -
-  uint lengthsArr[MAX_HISTORY];           // this will hold the length of each command string
-  uint lastCommandIndex;                  //the last command of the history
-  uint numOfCommmandsInMem;               //number of history commands in mem
-} history_bufer_array;
-
-// Writes history
-void history(char *buffer, int historyId, int *length)
-{
-  int indexInArray = (lastCommandIndex + historyId) % MAX_MEMORY_COMMAND_IN_HISTORY;
-  memmove(buffer, history_buffer_array.bufferArr[indexInArray], history_buffer_array.lengthsArr[indexInArray]);
-  *length = history_buffer_array.lengthsArr[indexInArray];
-}
-
-// Copies param buffer to saved history
-void saveCommandInHistory(char *bufferToSave, int length)
-{
-  if (history_buffer_array.numOfCommmandsInMem < MAX_HISTORY)
-    history_buffer_array.numOfCommmandsInMem++; //when we get to MAX_HISTORY commands in memory we keep on inserting to the array in a circular mution
-
-  history_buffer_array.lastCommandIndex = (history_buffer_array.lastCommandIndex == 0) ? MAX_HISTORY - 1 : history_buffer_array.lastCommandIndex--; // does minus 1 % 16
-  memmove(history_buffer_array.bufferArr[buffer_array.lastCommandIndex], bufferToSave, length);
-  history_buffer_array.lengthsArr[buffer_array.lastCommandIndex] = length;
 }
