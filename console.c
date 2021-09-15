@@ -14,6 +14,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "x86.h"
+#include "console.h"
 
 static void consputc(int);
 
@@ -129,8 +130,6 @@ void panic(char *s)
 //PAGEBREAK: 50
 #define BACKSPACE 0x100
 #define CRTPORT 0x3d4
-
-#define MAX_HISTORY 16
 
 #define UP_ARROW 226
 #define DOWN_ARROW 227
