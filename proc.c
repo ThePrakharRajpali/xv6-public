@@ -453,9 +453,9 @@ notfound:
 //      via swtch back to the scheduler.
 void scheduler(void)
 {
-  struct proc *p;
+  // struct proc *p;
   // struct proc *minP;
-  int index = 0;
+  // int index = 0;
   struct cpu *c = mycpu();
   c->proc = 0;
 
