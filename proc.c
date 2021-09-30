@@ -489,8 +489,26 @@ notfound:
 //      via swtch back to the scheduler.
 void scheduler(void)
 {
+#ifdef DEFAULT
   struct proc *p;
   struct proc *minP;
+#else
+#ifdef FCFS
+  truct proc *p;
+  struct proc *minP;
+#else
+#ifdef SML
+  truct proc *p;
+  struct proc *minP;
+#else
+#ifdef DML
+  truct proc *p;
+  struct proc *minP;
+#endif
+#endif
+#endif
+#endif
+
   int index1 = 0;
   int index2 = 0;
   int index3 = 0;
