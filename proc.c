@@ -387,18 +387,36 @@ int wait2(int *retime, int *rutime, int *stime)
 }
 
 #ifdef SML
-struct proc *findreadyprocess(int *index, uint *priority)
+struct proc *findreadyprocess(int *index1, int *index2, int *index3 uint *priority)
 {
   int i;
-  struct proc *proc;
+  struct proc *proc2;
 notfound:
   for (i = 0; i < NPROC; i++)
   {
-    proc = &ptable.proc[(*index + i) % NPROC];
-    if (proc->state == RUNNABLE && proc->priority == *priority)
+    switch (*priority)
     {
-      *index = (*index + 1) % NPROC;
-      return proc; // found a runnable process with appropriate priority
+    case 1:
+      proc2 = &ptable.proc[(*index1 + i) % NPROC];
+      if (proc2->state == RUNNABLE && proc2->priority == *priority)
+      {
+        *index1 = (*index1 + 1 + i) % NPROC;
+        return proc2; // found a runnable process with appropriate priority
+      }
+    case 2:
+      proc2 = &ptable.proc[(*index2 + i) % NPROC];
+      if (proc2->state == RUNNABLE && proc2->priority == *priority)
+      {
+        *index2 = (*index2 + 1 + i) % NPROC;
+        return proc2; // found a runnable process with appropriate priority
+      }
+    case 3:
+      proc2 = &ptable.proc[(*index3 + i) % NPROC];
+      if (proc2->state == RUNNABLE && proc2->priority == *priority)
+      {
+        *index3 = (*index3 + 1 + i) % NPROC;
+        return proc2; // found a runnable process with appropriate priority
+      }
     }
   }
   if (*priority == 1)
@@ -416,18 +434,36 @@ notfound:
 #endif
 
 #ifdef DML
-struct proc *findreadyprocess(int *index, uint *priority)
+struct proc *findreadyprocess(int *index1, int *index2, int *index3, uint *priority)
 {
   int i;
   struct proc *proc2;
 notfound:
   for (i = 0; i < NPROC; i++)
   {
-    proc2 = &ptable.proc[(*index + i) % NPROC];
-    if (proc2->state == RUNNABLE && proc2->priority == *priority)
+    switch (*priority)
     {
-      *index = (*index + 1 + i) % NPROC;
-      return proc2; // found a runnable process with appropriate priority
+    case 1:
+      proc2 = &ptable.proc[(*index1 + i) % NPROC];
+      if (proc2->state == RUNNABLE && proc2->priority == *priority)
+      {
+        *index1 = (*index1 + 1 + i) % NPROC;
+        return proc2; // found a runnable process with appropriate priority
+      }
+    case 2:
+      proc2 = &ptable.proc[(*index2 + i) % NPROC];
+      if (proc2->state == RUNNABLE && proc2->priority == *priority)
+      {
+        *index2 = (*index2 + 1 + i) % NPROC;
+        return proc2; // found a runnable process with appropriate priority
+      }
+    case 3:
+      proc2 = &ptable.proc[(*index3 + i) % NPROC];
+      if (proc2->state == RUNNABLE && proc2->priority == *priority)
+      {
+        *index3 = (*index3 + 1 + i) % NPROC;
+        return proc2; // found a runnable process with appropriate priority
+      }
     }
   }
   if (*priority == 1)
@@ -453,9 +489,17 @@ notfound:
 //      via swtch back to the scheduler.
 void scheduler(void)
 {
-  // struct proc *p;
-  // struct proc *minP;
-  // int index = 0;
+  struct proc *p;
+  struct proc *minP;
+  int index1 = 0;
+  int index2 = 0;
+  int index3 = 0;
+  int x = index1;
+  index1 = x;
+  x = index2;
+  index2 = x;
+  x = index3;
+  index3 = x;
   struct cpu *c = mycpu();
   c->proc = 0;
 
@@ -517,7 +561,7 @@ void scheduler(void)
 #else
 #ifdef SML
     uint priority = 3;
-    p = findreadyprocess(&index, &priority);
+    p = findreadyprocess(&index1, &index2, &index3, &priority);
     if (p == 0)
     {
       release(&ptable.lock);
@@ -533,7 +577,7 @@ void scheduler(void)
 #else
 #ifdef DML
     uint priority = 3;
-    p = findreadyprocess(&index, &priority);
+    p = findreadyprocess(&index1, &index2, &index3, &priority);
     if (p == 0)
     {
       release(&ptable.lock);
