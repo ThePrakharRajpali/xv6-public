@@ -13,9 +13,8 @@ struct gatedesc idt[256];
 extern uint vectors[]; // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
-int tickcycle;
-
-extern void resettickcycle(int *);
+extern int inctickcounter(void);
+extern void decpriority(void);
 
 void tvinit(void)
 {
@@ -63,7 +62,6 @@ void trap(struct trapframe *tf)
   case T_IRQ0 + IRQ_IDE:
 #ifdef FCFS
 #else
-    resettickcycle(&tickcycle);
 #endif
     ideintr();
     lapiceoi();
@@ -74,7 +72,6 @@ void trap(struct trapframe *tf)
   case T_IRQ0 + IRQ_KBD:
 #ifdef FCFS
 #else
-    resettickcycle(&tickcycle);
 #endif
     kbdintr();
     lapiceoi();
@@ -82,7 +79,6 @@ void trap(struct trapframe *tf)
   case T_IRQ0 + IRQ_COM1:
 #ifdef FCFS
 #else
-    resettickcycle(&tickcycle);
 #endif
     uartintr();
     lapiceoi();
@@ -120,12 +116,19 @@ void trap(struct trapframe *tf)
 #ifdef FCFS
 // code...
 #else
+#ifdef DML
   if (myproc() && myproc()->state == RUNNING &&
-      tf->trapno == T_IRQ0 + IRQ_TIMER && tickcycle++ == QUANTA)
+      tf->trapno == T_IRQ0 + IRQ_TIMER && inctickcounter() == QUANTA)
   {
-    resettickcycle(&tickcycle);
+    decpriority();
     yield();
   }
+#else
+  if (myproc() && myproc()->state == RUNNING && tf->trapno == T_IRQ0 + IRQ_TIMER && inctickcounter() == QUANTA)
+  {
+    yield();
+  }
+#endif
 #endif
 
   // Check if the process has been killed since we yielded

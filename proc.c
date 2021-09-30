@@ -90,7 +90,18 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
+  p->ctime = ticks;
+  p->retime = 0;
+  p->rutime = 0;
+  p->stime = 0;
+  p->fake[0] = '*';
+  p->fake[1] = '*';
+  p->fake[2] = '*';
+  p->fake[3] = '*';
+  p->fake[4] = '*';
+  p->fake[5] = '*';
+  p->fake[6] = '*';
+  p->fake[7] = '*';
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -467,7 +478,7 @@ void scheduler(void)
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
-
+      p->tickcounter = 0;
       swtch(&(c->scheduler), p->context);
       switchkvm();
 
@@ -648,7 +659,12 @@ wakeup1(void *chan)
 
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if (p->state == SLEEPING && p->chan == chan)
+    {
       p->state = RUNNABLE;
+#ifdef DML
+      p->priority = 3;
+#endif
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -754,9 +770,18 @@ int set_prio(int priority)
   return 0;
 }
 
-void resettickcycle(int *counter)
+void decpriority(void)
 {
+  struct proc *curproc = myproc();
+  curproc->priority = curproc->priority == 1 ? 1 : curproc->priority - 1;
+}
+
+int inctickcounter()
+{
+  struct proc *curproc = myproc();
+  int res;
   acquire(&ptable.lock);
-  *counter = 0;
+  res = ++curproc->tickcounter;
   release(&ptable.lock);
+  return res;
 }
