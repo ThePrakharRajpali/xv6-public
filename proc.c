@@ -6,7 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-
+#define NULL 0
 struct
 {
   struct spinlock lock;
@@ -132,6 +132,8 @@ void userinit(void)
     panic("userinit: out of memory?");
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
   p->sz = PGSIZE;
+  p->ctime = ticks;
+  p->priority = 2;
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
   p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
@@ -207,7 +209,7 @@ int fork(void)
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
-
+  np->priority = curproc->priority;
   for (i = 0; i < NOFILE; i++)
     if (curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
@@ -373,6 +375,34 @@ int wait2(int *retime, int *rutime, int *stime)
   }
 }
 
+#ifdef SML
+struct proc *findreadyprocess(int *index, uint *priority)
+{
+  int i;
+  struct proc *proc;
+notfound:
+  for (i = 0; i < NPROC - 1; i++)
+  {
+    proc = &ptable.proc[(*index + i) % NPROC];
+    if (proc->state == RUNNABLE && proc->priority == *priority)
+    {
+      *index = (*index + 1) % NPROC;
+      return proc; // found a runnable process with appropriate priority
+    }
+  }
+  if (*priority == 1)
+  {
+    *priority = 3;
+    return 0;
+  }
+  else
+  {
+    *priority -= 1;
+    goto notfound;
+  }
+  return proc;
+}
+#endif
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -384,6 +414,7 @@ int wait2(int *retime, int *rutime, int *stime)
 void scheduler(void)
 {
   struct proc *p;
+  struct proc *minP;
   struct cpu *c = mycpu();
   c->proc = 0;
 
@@ -394,6 +425,7 @@ void scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+#ifdef DEFAULT
     for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
       if (p->state != RUNNABLE)
@@ -413,7 +445,60 @@ void scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+
     release(&ptable.lock);
+#else
+
+#ifdef FCFS
+    struct proc *minP = NULL;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    {
+      if (p->state == RUNNABLE)
+      {
+        if (minP != NULL)
+        {
+          if (p->ctime < minP->ctime)
+            minP = p;
+        }
+        else
+          minP = p;
+      }
+      if (minP != NULL)
+      {
+        p = minP;
+        proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+        swtch(&cpu->scheduler, proc->context);
+        switchkvm();
+        proc = 0;
+      }
+
+      release(&ptable.lock);
+#else
+#ifdef SML
+    uint priority = 3;
+    int index = 0;
+    p = findreadyprocess(&index, &priority);
+    if (p == 0)
+    {
+      release(&ptable.lock);
+      continue;
+    }
+    proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+    switch (&c->scheduler, p->context)
+      ;
+    switchkvm();
+    release(&ptable.lock);
+#else
+#ifdef DML
+// code...
+#endif
+#endif
+#endif
+#endif
   }
 }
 
