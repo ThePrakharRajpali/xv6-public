@@ -40,3 +40,6 @@ void free(void *);
 int atoi(const char *);
 
 int wait2(int *, int *, int *);
+#ifdef SML
+int set_prio(int);
+#endif

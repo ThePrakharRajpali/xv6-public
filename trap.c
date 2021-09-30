@@ -13,7 +13,9 @@ struct gatedesc idt[256];
 extern uint vectors[]; // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
-uint tickcycle;
+int tickcycle;
+
+extern void resettickcycle(int *);
 
 void tvinit(void)
 {
@@ -59,6 +61,10 @@ void trap(struct trapframe *tf)
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE:
+#ifdef FCFS
+#else
+    resettickcycle(&tickcycle);
+#endif
     ideintr();
     lapiceoi();
     break;
@@ -66,10 +72,18 @@ void trap(struct trapframe *tf)
     // Bochs generates spurious IDE1 interrupts.
     break;
   case T_IRQ0 + IRQ_KBD:
+#ifdef FCFS
+#else
+    resettickcycle(&tickcycle);
+#endif
     kbdintr();
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_COM1:
+#ifdef FCFS
+#else
+    resettickcycle(&tickcycle);
+#endif
     uartintr();
     lapiceoi();
     break;
@@ -106,11 +120,12 @@ void trap(struct trapframe *tf)
 #ifdef FCFS
 // code...
 #else
-  // Force process to give up CPU on clock tick.
-  // If interrupts were on while locks held, would need to check nlock.
   if (myproc() && myproc()->state == RUNNING &&
-      tf->trapno == T_IRQ0 + IRQ_TIMER && tickcycle++ == 5)
+      tf->trapno == T_IRQ0 + IRQ_TIMER && tickcycle++ == QUANTA)
+  {
+    resettickcycle(&tickcycle);
     yield();
+  }
 #endif
 
   // Check if the process has been killed since we yielded

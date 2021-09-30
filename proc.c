@@ -381,7 +381,7 @@ struct proc *findreadyprocess(int *index, uint *priority)
   int i;
   struct proc *proc;
 notfound:
-  for (i = 0; i < NPROC - 1; i++)
+  for (i = 0; i < NPROC; i++)
   {
     proc = &ptable.proc[(*index + i) % NPROC];
     if (proc->state == RUNNABLE && proc->priority == *priority)
@@ -400,7 +400,36 @@ notfound:
     *priority -= 1;
     goto notfound;
   }
-  return proc;
+  return 0;
+}
+#endif
+
+#ifdef DML
+struct proc *findreadyprocess(int *index, uint *priority)
+{
+  int i;
+  struct proc *proc2;
+notfound:
+  for (i = 0; i < NPROC; i++)
+  {
+    proc2 = &ptable.proc[(*index + i) % NPROC];
+    if (proc2->state == RUNNABLE && proc2->priority == *priority)
+    {
+      *index = (*index + 1 + i) % NPROC;
+      return proc2; // found a runnable process with appropriate priority
+    }
+  }
+  if (*priority == 1)
+  { //did not find any process on any of the prorities
+    *priority = 3;
+    return 0;
+  }
+  else
+  {
+    *priority -= 1; //will try to find a process at a lower priority
+    goto notfound;
+  }
+  return 0;
 }
 #endif
 //PAGEBREAK: 42
@@ -414,7 +443,8 @@ notfound:
 void scheduler(void)
 {
   struct proc *p;
-  struct proc *minP;
+  // struct proc *minP;
+  int index = 0;
   struct cpu *c = mycpu();
   c->proc = 0;
 
@@ -446,7 +476,6 @@ void scheduler(void)
       c->proc = 0;
     }
 
-    release(&ptable.lock);
 #else
 
 #ifdef FCFS
@@ -471,14 +500,28 @@ void scheduler(void)
         p->state = RUNNING;
         swtch(&cpu->scheduler, proc->context);
         switchkvm();
-        proc = 0;
+        c->proc = 0;
       }
 
-      release(&ptable.lock);
 #else
 #ifdef SML
     uint priority = 3;
-    int index = 0;
+    p = findreadyprocess(&index, &priority);
+    if (p == 0)
+    {
+      release(&ptable.lock);
+      continue;
+    }
+    c->proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+    switch (&c->scheduler, p->context)
+      ;
+    switchkvm();
+    c->proc = 0;
+#else
+#ifdef DML
+    uint priority = 3;
     p = findreadyprocess(&index, &priority);
     if (p == 0)
     {
@@ -488,17 +531,15 @@ void scheduler(void)
     proc = p;
     switchuvm(p);
     p->state = RUNNING;
-    switch (&c->scheduler, p->context)
-      ;
+    swtch(&cpu->scheduler, proc->context);
     switchkvm();
+    proc = 0;
+#endif
+#endif
+#endif
+#endif
+
     release(&ptable.lock);
-#else
-#ifdef DML
-// code...
-#endif
-#endif
-#endif
-#endif
   }
 }
 
@@ -699,5 +740,23 @@ void updatestatistics()
     default:;
     }
   }
+  release(&ptable.lock);
+}
+
+int set_prio(int priority)
+{
+  struct proc *curproc = myproc();
+  if (priority < 1 || priority > 3)
+    return -1;
+  acquire(&ptable.lock);
+  curproc->priority = priority;
+  release(&ptable.lock);
+  return 0;
+}
+
+void resettickcycle(int *counter)
+{
+  acquire(&ptable.lock);
+  *counter = 0;
   release(&ptable.lock);
 }
