@@ -74,4 +74,9 @@ struct proc
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+static void wakeup1(void *chan);
+
 void updatestatistics();
+int random(int max);
+int totalTickets();
+struct proc *findReadyProcess(int *index1, int *index2, int *index3, uint *priority);

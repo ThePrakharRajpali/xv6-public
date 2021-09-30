@@ -60,9 +60,6 @@ void trap(struct trapframe *tf)
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE:
-#ifdef FCFS
-#else
-#endif
     ideintr();
     lapiceoi();
     break;
@@ -70,16 +67,10 @@ void trap(struct trapframe *tf)
     // Bochs generates spurious IDE1 interrupts.
     break;
   case T_IRQ0 + IRQ_KBD:
-#ifdef FCFS
-#else
-#endif
     kbdintr();
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_COM1:
-#ifdef FCFS
-#else
-#endif
     uartintr();
     lapiceoi();
     break;
@@ -113,23 +104,9 @@ void trap(struct trapframe *tf)
   if (myproc() && myproc()->killed && (tf->cs & 3) == DPL_USER)
     exit();
 
-#ifdef FCFS
-// code...
-#else
-#ifdef DML
   if (myproc() && myproc()->state == RUNNING &&
-      tf->trapno == T_IRQ0 + IRQ_TIMER && inctickcounter() == QUANTA)
-  {
-    decpriority();
+      tf->trapno == T_IRQ0 + IRQ_TIMER)
     yield();
-  }
-#else
-  if (myproc() && myproc()->state == RUNNING && tf->trapno == T_IRQ0 + IRQ_TIMER && inctickcounter() == QUANTA)
-  {
-    yield();
-  }
-#endif
-#endif
 
   // Check if the process has been killed since we yielded
   if (myproc() && myproc()->killed && (tf->cs & 3) == DPL_USER)

@@ -33,20 +33,21 @@ int main(int argc, char *argv[])
             switch (j)
             {
             case 0:
-                set_prio(1);
+                chpr(getpid(), 1);
                 break;
             case 1:
-                set_prio(2);
+                chpr(getpid(), 2);
                 break;
             case 2:
-                set_prio(3);
+                chpr(getpid(), 3);
                 break;
             }
 #endif
             for (k = 0; k < 100; k++)
             {
-                for (j = 0; j < 1000000; j++)
+                for (double z = 0; z < 10000.0; z += 0.1)
                 {
+                    double x = x + 3.14 * 89.64; // useless calculations to consume CPU time
                 }
             }
             exit(); // children exit here

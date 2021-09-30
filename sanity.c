@@ -5,7 +5,7 @@ int main(int argc, char *argv[])
 {
     if (argc != 2)
     {
-        printf(1, "Usage: sanity <n>\n");
+        printf(1, "Usage: sanity [n]\n");
         exit();
     }
     int i;
@@ -15,30 +15,25 @@ int main(int argc, char *argv[])
     int retime;
     int rutime;
     int stime;
-
     int sums[3][3];
     for (i = 0; i < 3; i++)
         for (j = 0; j < 3; j++)
             sums[i][j] = 0;
-
     n = atoi(argv[1]);
-    i = n;
     int pid;
-    for (i = 0; i < 3 * n; i++)
+    for (i = 0; i < n; i++)
     {
         j = i % 3;
         pid = fork();
         if (pid == 0)
-        {
-            j = (getpid() - 4) % 3;
+        {                           //child
+            j = (getpid() - 4) % 3; // ensures independence from the first son's pid when gathering the results in the second part of the program
             switch (j)
             {
             case 0: //CPU‐bound process (CPU):
-                for (k = 0; k < 100; k++)
+                for (double z = 0; z < 10000.0; z += 0.1)
                 {
-                    for (j = 0; j < 1000000; j++)
-                    {
-                    }
+                    double x = x + 3.14 * 89.64; // useless calculations to consume CPU time
                 }
                 break;
             case 1: //short tasks based CPU‐bound process (S‐CPU):
@@ -50,18 +45,18 @@ int main(int argc, char *argv[])
                     yield();
                 }
                 break;
-            case 2: // I/O bound process (IO)
+            case 2: // simulate I/O bound process (IO)
                 for (k = 0; k < 100; k++)
                 {
                     sleep(1);
                 }
                 break;
             }
-            exit();
+            exit(); // children exit here
         }
-        continue;
+        continue; // father continues to spawn the next child
     }
-    for (i = 0; i < 3 * n; i++)
+    for (i = 0; i < n; i++)
     {
         pid = wait2(&retime, &rutime, &stime);
         int res = (pid - 4) % 3; // correlates to j in the dispatching loop
